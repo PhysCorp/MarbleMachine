@@ -23,7 +23,7 @@ Tested on Fedora 37
 0. Download this project with `git clone https://github.com/PhysCorp/MarbleMachine.git`
 1. Activate the conda environment with `conda activate MarbleMachine`.
 2. Run `python3 main.py` to start the program. Here is an example command:
-```python3 main.py input="FULL_PATH_TO_IMAGE.png" bed_shake=False output="FULL_PATH_TO_OUTPUT.stl"```
+```python3 auto.py --display --camera_bounds="(150,60)(515,435)" --execute```
 
 ### Alternate Instructions using virtualenv
 Create a new virtualenv with `python3 -m venv venv`.

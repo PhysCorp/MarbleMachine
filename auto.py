@@ -24,9 +24,9 @@
 try:
     import os
     import sys
-    import serial
     import math
     import cv2
+    import platform
     import time
     import numpy as np
     from rich import print as rich_print
@@ -392,9 +392,13 @@ if __name__ == "__main__":
             print("]")
             
             # Add the pixel with the least neighbors to solved_white_pixels
-            solved_white_pixels.append(white_pixels[least_neighbors_index])
-            # Pop the pixel with the least neighbors from the white_pixels list
-            white_pixels.pop(least_neighbors_index)
+            try:
+                solved_white_pixels.append(white_pixels[least_neighbors_index])
+                # Pop the pixel with the least neighbors from the white_pixels list
+                white_pixels.pop(least_neighbors_index)
+            except IndexError:
+                print("[ERROR]: No white pixels found in image.")
+                quit()
 
             # Loop through white_pixels, identifying the closest pixel to the current pixel and popping it from the list
             print("[INFO]: Solving white pixels...")
@@ -481,11 +485,22 @@ if __name__ == "__main__":
             if print_flag:
                 # Print the gcode
                 print("[INFO]: Beginning to print/draw gcode...")
-                # Scan devices and find the serial port of the printer
-                devices = serial.tools.list_ports.comports()
-                for device in devices:
-                    print(device)
-                quit()
+                # Run the pronterface -b & command (if on Linux) or pronterface.exe -b & command (if on Windows)
+                if platform.system() == "Linux":
+                    # Get the filename path of program_output_filename without the other directories
+                    temp_program_output_filename = program_output_filename.split("/")[-1]
+                    # CD into maindirectory and then run the command "sudo pronterface -a -e \"load temp_program_output_filename print\"
+                    os.system(f"cd \"{os.path.join(maindirectory, 'temp')}\" && sudo pronterface -a -e \"load {temp_program_output_filename}\"")
+                elif platform.system() == "Windows":
+                    # Get the filename path of program_output_filename without the other directories
+                    temp_program_output_filename = program_output_filename.split("\\")[-1]
+                    # CD into maindirectory and then run the command "pronterface.exe -a -e \"load temp_program_output_filename print\"
+                    os.system(f"cd \"{os.path.join(maindirectory, 'temp')}\" && pronterface.exe -a -e \"load {temp_program_output_filename}\"")
+                else:
+                    print("[ERROR]: Unsupported operating system.")
+                    quit()
+                
+                print("[INFO]: Gcode printed/drawn.")
 
             if program_input_filename != "":
                 if pi_mode:

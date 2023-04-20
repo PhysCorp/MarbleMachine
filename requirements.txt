@@ -1,8 +1,7 @@
 rich
-# opencv-python
+opencv-python
 numpy
 opencv-contrib-python
-serial
 # Printrun
 
 # attrdict
