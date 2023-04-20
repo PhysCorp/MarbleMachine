@@ -24,11 +24,12 @@
 try:
     import os
     import sys
+    import serial
     import math
     import cv2
     import time
     import numpy as np
-    from rich import print
+    from rich import print as rich_print
     from rich.traceback import install
     install()
 except ImportError as e:
@@ -41,11 +42,11 @@ except ImportError as e:
 maindirectory = os.path.dirname(os.path.abspath(__file__)) # The absolute path to this file
 
 # Custom low-level functions
-# def print(text="", log_filename=""):
-#     if log_filename != "":
-#         with open(os.path.join(maindirectory, "logs", log_filename), "a") as f:
-#             f.write(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] {text}")
-#     __builtins__.print(text)
+def print(text="", log_filename="", end="\n"):
+    if log_filename != "":
+        with open(os.path.join(maindirectory, "logs", log_filename), "a") as f:
+            f.write(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] {text}")
+    rich_print(text, end=end)
 
 # Get arguments from kwargs
 try:
@@ -61,16 +62,14 @@ try:
             arguments[value[0]] = value[1]
 except IndexError:
     print("[ERROR]: No arguments were provided. You must provide arguments in the format of `argument=value`")
-    print("Example: `python3 main.py input=\"FULL_PATH_TO_IMAGE.png\" output=\"FULL_PATH_TO_OUTPUT.gcode\"`")
+    print("Example: `python3 auto.py input=\"FULL_PATH_TO_IMAGE.png\" output=\"FULL_PATH_TO_OUTPUT.gcode\"`")
     quit()
 
 # Override everything with help command
 if "help" in arguments:
     print("=== MarbleMachine HELP ===")
     print("This script is used to convert an image, either from a webcam or a file, into a set of line segment g-code, similar to a CNC etch-a-sketch.")
-    print("The image should be a black and white image, with the drawing in black.")
-    print("The image should be a 1:1 ratio, and should be 1000x1000 pixels.")
-    print("The image should be a PNG file.")
+    print("Under optimal conditions, the image should be 1:1 ratio, and be black and white.")
     print("[OPTIONS]")
     print("input: The input filename. If this is not provided, then the script will capture from a webcam.")
     print("output: The output filename. This is required.")
@@ -78,26 +77,130 @@ if "help" in arguments:
     print("=== END MarbleMachine HELP ===")
     quit()
 
+# Get the input filename
+try:
+    program_input_filename = arguments["input"]
+except KeyError:
+    print("[INFO]: No filename was provided. Assuming that you are capturing from a webcam.")
+    program_input_filename = ""
+
+# Get the output filename
+try:
+    program_output_filename = arguments["output"]
+except KeyError:
+    print("[INFO]: No output filename was provided. Using \"output.gcode\".")
+    program_output_filename = "output.gcode"
+
+# Get the program_maximum_x
+try:
+    program_maximum_x = int(arguments["maximum_x"])
+except KeyError:
+    print("[INFO]: No maximum x was provided. Using 613.")
+    program_maximum_x = 613
+
+# Get the program_maximum_y
+try:
+    program_maximum_y = int(arguments["maximum_y"])
+except KeyError:
+    print("[INFO]: No maximum y was provided. Using 548.")
+    program_maximum_y = 548
+
+# Get the program_initial_speed
+try:
+    program_initial_speed = int(arguments["initial_speed"])
+except KeyError:
+    print("[INFO]: No initial speed was provided. Using 50000.")
+    program_initial_speed = 50000
+
+# Get the program_border_x
+try:
+    program_border_x = int(arguments["border_x"])
+except KeyError:
+    print("[INFO]: No border x was provided. Using 50.")
+    program_border_x = 50
+
+# Get the program_border_y
+try:
+    program_border_y = int(arguments["border_y"])
+except KeyError:
+    print("[INFO]: No border y was provided. Using 50.")
+    program_border_y = 50
+
+# Get the program_debug
+try:
+    program_debug = bool(arguments["debug"])
+except KeyError:
+    print("[INFO]: Debug mode was not specified. Assuming production mode.")
+    program_debug = False
+
+# Get the program_display
+try:
+    program_display = bool(arguments["display"])
+except KeyError:
+    print("[INFO]: Display mode was not specified. Assuming you do NOT want to display the image.")
+    program_display = False
+
+# Get the program_dwell_time
+try:
+    program_dwell_time = int(arguments["dwell_time"])
+except KeyError:
+    print("[INFO]: No dwell time was provided. Using 5000.")
+    program_dwell_time = 5000
+
+# Get the pi_mode
+try:
+    pi_mode = bool(arguments["pi_mode"])
+except KeyError:
+    print("[INFO]: Pi mode was not specified. Assuming you are NOT on Pi.")
+    pi_mode = False
+
+# Get the input_pin
+try:
+    input_pin = int(arguments["input_pin"])
+except KeyError:
+    if pi_mode:
+        print("[INFO]: No input pin was provided. Using 17.")
+        input_pin = 17
+
+# Get the print_flag
+try:
+    print_flag = bool(arguments["execute"])
+except KeyError:
+    print("[INFO]: Execution was not specified. Will NOT automatically print.")
+    print_flag = False
+
+# If print_flag is set, import the printer libraries
+if print_flag:
+    try:
+        print("DEBUG")
+        # from printrun.printrun.printcore import printcore
+        # from printrun import gcoder
+    except ImportError as e:
+        print("[ERROR] You are missing one or more libraries. This script cannot continue")
+        print(e)
+        print("Try running `python3 -m pip install -r requirements.txt`")
+        quit()
+
+# Get the program_camera_bounds
+try:
+    program_camera_bounds = arguments["camera_bounds"]
+    print(program_camera_bounds)
+    # Convert the format of "(0,0)(0,0)" to [[0,0],[0,0]]
+    program_camera_bounds = program_camera_bounds.replace("(", "")
+    program_camera_bounds = program_camera_bounds.replace(")", ",")
+    program_camera_bounds = program_camera_bounds.split(",")
+    program_camera_bounds = [[int(program_camera_bounds[0]), int(program_camera_bounds[1])], [int(program_camera_bounds[2]), int(program_camera_bounds[3])]]
+except KeyError:
+    print("[INFO]: No camera bounds were provided. Using default.")
+    program_camera_bounds = [[0, 0], [0, 0]]
+
 # Newline
 print()
 
 # [ MAIN ]
 
 if __name__ == "__main__":
-    # [Options]
-    program_input_filename = "twocircles.png"
-    program_output_filename = "output2.gcode"
-    program_maximum_x = 613
-    program_maximum_y = 548
-    program_initial_speed = 50000
-    program_border_x = 50
-    program_border_y = 50
-    program_debug = False
-    program_dwell_time = 5000 # in ms
-    
-    # Raspberry pi related options
-    pi_mode = False
-    input_pin = 17
+    # Init program
 
     if pi_mode:
         import RPi.GPIO as GPIO
@@ -107,8 +210,10 @@ if __name__ == "__main__":
     # GPIO protection
     try:
         # Get paths
-        program_input_filename = os.path.join(maindirectory, "temp", program_input_filename)
-        program_output_filename = os.path.join(maindirectory, "temp", program_output_filename)
+        if program_input_filename != "":
+            program_input_filename = os.path.join(maindirectory, "temp", program_input_filename)
+        if program_output_filename != "":
+            program_output_filename = os.path.join(maindirectory, "temp", program_output_filename)
         
         # Welcome message
         print("=== Welcome to MarbleMachine ===")
@@ -116,12 +221,14 @@ if __name__ == "__main__":
         print(f"Output Filename: \"{program_output_filename}\"")
         print()
 
+        bool_camera = False
         while True:
             print("[INFO]: Starting a new loop")
             print()
             # If the input filename is empty, then we are capturing from a webcam
             # Open the webcam, then wait for the user to press enter before capturing
-            if program_input_filename == "":
+            if program_input_filename == "" or bool_camera:
+                bool_camera = True
                 print("[INFO]: Press [yellow]ENTER[/yellow] to capture an image from the webcam.")
                 input()
                 print("[INFO]: Capturing image from webcam...")
@@ -141,18 +248,38 @@ if __name__ == "__main__":
                 quit()
             print("[INFO]: Image imported.")
 
+            # Rotate the image 180 degrees
+            print("[INFO]: Rotating image...")
+            image = cv2.rotate(image, cv2.ROTATE_180)
+            print("[INFO]: Image rotated.")
+
+            # Display the image with the caption of "Original"
+            if program_display:
+                print("[INFO]: Displaying image...")
+                cv2.imshow("Original", image)
+                cv2.waitKey(0)
+                cv2.destroyAllWindows()
+                print("[INFO]: Image displayed.")
+
+            # Crop the image based on the camera bounds, if they were provided
+            if program_camera_bounds != [[0, 0], [0, 0]]:
+                print("[INFO]: Cropping image...")
+                print("[INFO]: Camera bounds: " + str(program_camera_bounds))
+                image = image[program_camera_bounds[0][1]:program_camera_bounds[1][1], program_camera_bounds[0][0]:program_camera_bounds[1][0]]
+                print("[INFO]: Image cropped.")
+
             # Convert the image to grayscale
             print("[INFO]: Converting image to grayscale...")
             image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
             print("[INFO]: Image converted to grayscale.")
 
             # Display the image
-            # if program_debug:
-            #     print("[INFO]: Displaying image...")
-            #     cv2.imshow("Image", image)
-            #     cv2.waitKey(0)
-            #     cv2.destroyAllWindows()
-            #     print("[INFO]: Image displayed.")
+            if program_display:
+                print("[INFO]: Displaying image...")
+                cv2.imshow("Grayscale", image)
+                cv2.waitKey(0)
+                cv2.destroyAllWindows()
+                print("[INFO]: Image displayed.")
 
             # Invert the image
             print("[INFO]: Inverting image...")
@@ -160,25 +287,25 @@ if __name__ == "__main__":
             print("[INFO]: Image inverted.")
 
             # Display the image
-            # if program_debug:
-            #     print("[INFO]: Displaying image...")
-            #     cv2.imshow("Image", image)
-            #     cv2.waitKey(0)
-            #     cv2.destroyAllWindows()
-            #     print("[INFO]: Image displayed.")
+            if program_display:
+                print("[INFO]: Displaying image...")
+                cv2.imshow("Inverted", image)
+                cv2.waitKey(0)
+                cv2.destroyAllWindows()
+                print("[INFO]: Image displayed.")
 
             # Threshold the image
             print("[INFO]: Thresholding image...")
             ret, image = cv2.threshold(image, 127, 255, cv2.THRESH_BINARY)
             print("[INFO]: Image thresholded.")
 
-            # Display the image50000
-            # if program_debug:
-            #     print("[INFO]: Displaying image...")
-            #     cv2.imshow("Image", image)
-            #     cv2.waitKey(0)
-            #     cv2.destroyAllWindows()
-            #     print("[INFO]: Image displayed.")
+            # Display the image
+            if program_display:
+                print("[INFO]: Displaying image...")
+                cv2.imshow("Thresholded", image)
+                cv2.waitKey(0)
+                cv2.destroyAllWindows()
+                print("[INFO]: Image displayed.")
 
             # Convert the image to a fixed size
             print("[INFO]: Converting image to fixed size...")
@@ -186,12 +313,12 @@ if __name__ == "__main__":
             print("[INFO]: Image converted to fixed size.")
 
             # Display the image
-            # if program_debug:
-            #     print("[INFO]: Displaying image...")
-            #     cv2.imshow("Image", image)
-            #     cv2.waitKey(0)
-            #     cv2.destroyAllWindows()
-            #     print("[INFO]: Image displayed.")
+            if program_display:
+                print("[INFO]: Displaying image...")
+                cv2.imshow("Resized", image)
+                cv2.waitKey(0)
+                cv2.destroyAllWindows()
+                print("[INFO]: Image displayed.")
             
             # Apply Euclidean Distance Transform to get distance map
             print("[INFO]: Applying Euclidean Distance Transform...")
@@ -204,25 +331,17 @@ if __name__ == "__main__":
             print("[INFO]: Distance map normalized.")
 
             # Display the image
-            # if program_debug:
-            #     print("[INFO]: Displaying image...")
-            #     cv2.imshow("Image", distance_map)
-            #     cv2.waitKey(0)
-            #     cv2.destroyAllWindows()
-            #     print("[INFO]: Image displayed.")
+            if program_display:
+                print("[INFO]: Displaying image...")
+                cv2.imshow("Distance Transform", distance_map)
+                cv2.waitKey(0)
+                cv2.destroyAllWindows()
+                print("[INFO]: Image displayed.")
 
             # Use thinning method to get skeleton of the image
             print("[INFO]: Applying thinning method...")
             skeleton = cv2.ximgproc.thinning(image, cv2.ximgproc.THINNING_ZHANGSUEN)
             print("[INFO]: Thinning method applied.")
-
-            # Display the image
-            # if program_debug:
-            #     print("[INFO]: Displaying image...")
-            #     cv2.imshow("Image", skeleton)
-            #     cv2.waitKey(0)
-            #     cv2.destroyAllWindows()
-            #     print("[INFO]: Image displayed.")
 
             # Convert the skeleton to an image
             print("[INFO]: Converting skeleton to image...")
@@ -231,12 +350,12 @@ if __name__ == "__main__":
             print("[INFO]: Skeleton converted to image.")
 
             # Display the image
-            # if program_debug:
-            #     print("[INFO]: Displaying image...")
-            #     cv2.imshow("Image", skeleton)
-            #     cv2.waitKey(0)
-            #     cv2.destroyAllWindows()
-            #     print("[INFO]: Image displayed.")
+            if program_display:
+                print("[INFO]: Displaying image...")
+                cv2.imshow("Skeleton", skeleton)
+                cv2.waitKey(0)
+                cv2.destroyAllWindows()
+                print("[INFO]: Image displayed.")
 
             # Find the coordinates of each white pixel and store in a list
             print("[INFO]: Finding coordinates of white pixels...")
@@ -254,9 +373,15 @@ if __name__ == "__main__":
             print("[INFO]: Identifying pixel with least neighbors...")
             least_neighbors = 2
             least_neighbors_index = 0
+            # Print progress bar with 50 hashtags
+            print("[INFO]: Progress: [                                                 ]", end=f"\r[INFO]: Progress: [")
             for i in range(0, len(white_pixels)):
                 neighbors = 0
                 for j in range(0, len(white_pixels)):
+                    # Print hashtags for progress bar based on len(white_pixels)*len(white_pixels) iterations, limited to 50
+                    if len(white_pixels)*len(white_pixels) > 50:
+                        if (i*len(white_pixels) + j) % (len(white_pixels)*len(white_pixels) // 50) == 0:
+                            print("#", end="")
                     if i != j:
                         if abs(white_pixels[i][0] - white_pixels[j][0]) <= 1:
                             if abs(white_pixels[i][1] - white_pixels[j][1]) <= 1:
@@ -264,6 +389,7 @@ if __name__ == "__main__":
                 if neighbors < least_neighbors:
                     least_neighbors = neighbors
                     least_neighbors_index = i
+            print("]")
             
             # Add the pixel with the least neighbors to solved_white_pixels
             solved_white_pixels.append(white_pixels[least_neighbors_index])
@@ -272,6 +398,8 @@ if __name__ == "__main__":
 
             # Loop through white_pixels, identifying the closest pixel to the current pixel and popping it from the list
             print("[INFO]: Solving white pixels...")
+            # Print progress bar with 50 hashtags
+            print("[INFO]: Progress: [                                                 ]", end=f"\r[INFO]: Progress: [")
             for i in range(0, len(white_pixels)):
                 # Get the current pixel
                 current_pixel = solved_white_pixels[-1]
@@ -281,6 +409,10 @@ if __name__ == "__main__":
                 closest_pixel_index = 0
                 # Loop through white_pixels, finding the closest pixel
                 for j in range(0, len(white_pixels)):
+                    # Print hashtags for progress bar based on len(white_pixels)*len(white_pixels) iterations, limited to 50
+                    if len(white_pixels)*len(white_pixels) > 50:
+                        if (i*len(white_pixels) + j) % (len(white_pixels)*len(white_pixels) // 50) == 0:
+                            print("#", end="")
                     # Get the distance between the current pixel and the current pixel in white_pixels
                     current_distance = math.sqrt(((white_pixels[j][0] - current_pixel[0]) ** 2) + ((white_pixels[j][1] - current_pixel[1]) ** 2))
                     # If the current distance is less than the distance, then set the distance to the current distance and set the closest pixel index to the current index
@@ -346,14 +478,23 @@ if __name__ == "__main__":
 
             print("Done!")
 
+            if print_flag:
+                # Print the gcode
+                print("[INFO]: Beginning to print/draw gcode...")
+                # Scan devices and find the serial port of the printer
+                devices = serial.tools.list_ports.comports()
+                for device in devices:
+                    print(device)
+                quit()
+
             if program_input_filename != "":
                 if pi_mode:
                     # Wait for button press from GPIO pin 17
-                    print("[INFO]: Press the button to capture another image from the webcam, or [bright_red]CTRL+C[/bright_red] to exit.")
+                    print("[INFO]: Press the button to convert another image, or [bright_red]CTRL+C[/bright_red] to exit.")
                     GPIO.wait_for_edge(input_pin, GPIO.FALLING)
                 else:
                     # Wait for user input
-                    print("[INFO]: Press [bright_yellow]ENTER[/bright_yellow] to capture another image from the webcam, or [bright_red]CTRL+C[/bright_red] to exit.")
+                    print("[INFO]: Press [bright_yellow]ENTER[/bright_yellow] to convert another image, or [bright_red]CTRL+C[/bright_red] to exit.")
                     input()
                 print()
     except KeyboardInterrupt:

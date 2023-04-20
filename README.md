@@ -8,14 +8,14 @@ Tested on Fedora 37
 - [ ] X
 
 ## Requirements
-- [x] Python 3.8
+- [x] Python 3.6
 - [x] python3-pip
 - [x] conda
 - [ ] python3-virtualenv
 
 ## Installation
 1. Install python3, python3-pip and anaconda. Anaconda can be retrieved from [here](https://www.anaconda.com/products/individual). If you are on Windows, you can install anaconda with [chocolatey](https://chocolatey.org/) using `choco install anaconda3`.
-2. Create a conda environment with `conda create --name MarbleMachine python=3.8`.
+2. Create a conda environment with `conda create --name MarbleMachine python=3.6`.
 3. Activate the conda environment with `conda activate MarbleMachine`.
 4. Install the requirements with `python3 -m pip install -r requirements.txt`.
 
