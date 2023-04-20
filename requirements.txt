@@ -1,3 +1,4 @@
 rich
 opencv-python
 numpy
+opencv-contrib-python

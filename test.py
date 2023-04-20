@@ -24,6 +24,7 @@
 try:
     import os
     import sys
+    import math
     import cv2
     import time
     import numpy as np
@@ -84,14 +85,15 @@ print()
 
 if __name__ == "__main__":
     # [Options]
-    program_input_filename = "circle.png"
-    program_output_filename = "output.gcode"
+    program_input_filename = "twocircles.png"
+    program_output_filename = "output2.gcode"
     program_maximum_x = 613
     program_maximum_y = 548
-    program_initial_speed = 5000
+    program_initial_speed = 50000
     program_border_x = 50
     program_border_y = 50
-    program_debug = True
+    program_debug = False
+    program_dwell_time = 5000 # in ms
     
     # Raspberry pi related options
     pi_mode = False
@@ -145,12 +147,12 @@ if __name__ == "__main__":
             print("[INFO]: Image converted to grayscale.")
 
             # Display the image
-            if program_debug:
-                print("[INFO]: Displaying image...")
-                cv2.imshow("Image", image)
-                cv2.waitKey(0)
-                cv2.destroyAllWindows()
-                print("[INFO]: Image displayed.")
+            # if program_debug:
+            #     print("[INFO]: Displaying image...")
+            #     cv2.imshow("Image", image)
+            #     cv2.waitKey(0)
+            #     cv2.destroyAllWindows()
+            #     print("[INFO]: Image displayed.")
 
             # Invert the image
             print("[INFO]: Inverting image...")
@@ -158,25 +160,25 @@ if __name__ == "__main__":
             print("[INFO]: Image inverted.")
 
             # Display the image
-            if program_debug:
-                print("[INFO]: Displaying image...")
-                cv2.imshow("Image", image)
-                cv2.waitKey(0)
-                cv2.destroyAllWindows()
-                print("[INFO]: Image displayed.")
+            # if program_debug:
+            #     print("[INFO]: Displaying image...")
+            #     cv2.imshow("Image", image)
+            #     cv2.waitKey(0)
+            #     cv2.destroyAllWindows()
+            #     print("[INFO]: Image displayed.")
 
             # Threshold the image
             print("[INFO]: Thresholding image...")
             ret, image = cv2.threshold(image, 127, 255, cv2.THRESH_BINARY)
             print("[INFO]: Image thresholded.")
 
-            # Display the image
-            if program_debug:
-                print("[INFO]: Displaying image...")
-                cv2.imshow("Image", image)
-                cv2.waitKey(0)
-                cv2.destroyAllWindows()
-                print("[INFO]: Image displayed.")
+            # Display the image50000
+            # if program_debug:
+            #     print("[INFO]: Displaying image...")
+            #     cv2.imshow("Image", image)
+            #     cv2.waitKey(0)
+            #     cv2.destroyAllWindows()
+            #     print("[INFO]: Image displayed.")
 
             # Convert the image to a fixed size
             print("[INFO]: Converting image to fixed size...")
@@ -184,12 +186,12 @@ if __name__ == "__main__":
             print("[INFO]: Image converted to fixed size.")
 
             # Display the image
-            if program_debug:
-                print("[INFO]: Displaying image...")
-                cv2.imshow("Image", image)
-                cv2.waitKey(0)
-                cv2.destroyAllWindows()
-                print("[INFO]: Image displayed.")
+            # if program_debug:
+            #     print("[INFO]: Displaying image...")
+            #     cv2.imshow("Image", image)
+            #     cv2.waitKey(0)
+            #     cv2.destroyAllWindows()
+            #     print("[INFO]: Image displayed.")
             
             # Apply Euclidean Distance Transform to get distance map
             print("[INFO]: Applying Euclidean Distance Transform...")
@@ -202,84 +204,111 @@ if __name__ == "__main__":
             print("[INFO]: Distance map normalized.")
 
             # Display the image
-            if program_debug:
-                print("[INFO]: Displaying image...")
-                cv2.imshow("Image", distance_map)
-                cv2.waitKey(0)
-                cv2.destroyAllWindows()
-                print("[INFO]: Image displayed.")
+            # if program_debug:
+            #     print("[INFO]: Displaying image...")
+            #     cv2.imshow("Image", distance_map)
+            #     cv2.waitKey(0)
+            #     cv2.destroyAllWindows()
+            #     print("[INFO]: Image displayed.")
 
             # Use thinning method to get skeleton of the image
             print("[INFO]: Applying thinning method...")
-            
-            skeleton = skeletonize(image)
+            skeleton = cv2.ximgproc.thinning(image, cv2.ximgproc.THINNING_ZHANGSUEN)
             print("[INFO]: Thinning method applied.")
 
             # Display the image
-            if program_debug:
-                print("[INFO]: Displaying image...")
-                cv2.imshow("Image", skeleton)
-                cv2.waitKey(0)
-                cv2.destroyAllWindows()
-                print("[INFO]: Image displayed.")
+            # if program_debug:
+            #     print("[INFO]: Displaying image...")
+            #     cv2.imshow("Image", skeleton)
+            #     cv2.waitKey(0)
+            #     cv2.destroyAllWindows()
+            #     print("[INFO]: Image displayed.")
 
-            # Convert distance_map to CV_8UC1 image
-            print("[INFO]: Converting distance map to CV_8UC1 image...")
-            distance_map = np.uint8(distance_map)
-            print("[INFO]: Distance map converted to CV_8UC1 image.")
+            # Convert the skeleton to an image
+            print("[INFO]: Converting skeleton to image...")
+            skeleton = skeleton.astype(np.uint8)
+            skeleton = cv2.cvtColor(skeleton, cv2.COLOR_GRAY2BGR)
+            print("[INFO]: Skeleton converted to image.")
 
             # Display the image
-            if program_debug:
-                print("[INFO]: Displaying image...")
-                cv2.imshow("Image", distance_map)
-                cv2.waitKey(0)
-                cv2.destroyAllWindows()
-                print("[INFO]: Image displayed.")
+            # if program_debug:
+            #     print("[INFO]: Displaying image...")
+            #     cv2.imshow("Image", skeleton)
+            #     cv2.waitKey(0)
+            #     cv2.destroyAllWindows()
+            #     print("[INFO]: Image displayed.")
 
-            # Find the contours
-            print("[INFO]: Finding contours...")
-            contours, hierarchy = cv2.findContours(distance_map, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-            print("[INFO]: Contours found.")
+            # Find the coordinates of each white pixel and store in a list
+            print("[INFO]: Finding coordinates of white pixels...")
+            white_pixels = []
+            for y in range(0, 1000):
+                for x in range(0, 1000):
+                    if skeleton[y][x][0] == 255:
+                        white_pixels.append([x, y])
+            print("[INFO]: Coordinates of white pixels found.")
 
-            # [ Debug ] Display the image after the contours are found, minus the image itself
-            if program_debug:
-                print("[INFO]: Displaying image...")
-                cv2.drawContours(distance_map, contours, -1, (0, 255, 0), 3)
-                cv2.imshow("Image", distance_map)
-                cv2.waitKey(0)
-                cv2.destroyAllWindows()
-                print("[INFO]: Image displayed.")
+            # Create a new list of solved_white_pixels
+            solved_white_pixels = []
 
-            # Find the center of each contour using moments
-            centers = []
-            for contour in contours:
-                M = cv2.moments(contour)
-                if M["m00"] != 0:
-                    cX = int(M["m10"] / M["m00"])
-                    cY = int(M["m01"] / M["m00"])
-                    centers.append((cX, cY))
+            # Loop through the list of white_pixels and identify the ordered pair that has the least neighbors
+            print("[INFO]: Identifying pixel with least neighbors...")
+            least_neighbors = 2
+            least_neighbors_index = 0
+            for i in range(0, len(white_pixels)):
+                neighbors = 0
+                for j in range(0, len(white_pixels)):
+                    if i != j:
+                        if abs(white_pixels[i][0] - white_pixels[j][0]) <= 1:
+                            if abs(white_pixels[i][1] - white_pixels[j][1]) <= 1:
+                                neighbors += 1
+                if neighbors < least_neighbors:
+                    least_neighbors = neighbors
+                    least_neighbors_index = i
             
-            # Sort the centers based on their distance to the center of the image
-            center_x = program_maximum_x / 2
-            center_y = program_maximum_y / 2
-            centers = sorted(centers, key=lambda c: ((c[0] - center_x) ** 2 + (c[1] - center_y) ** 2) ** 0.5)
+            # Add the pixel with the least neighbors to solved_white_pixels
+            solved_white_pixels.append(white_pixels[least_neighbors_index])
+            # Pop the pixel with the least neighbors from the white_pixels list
+            white_pixels.pop(least_neighbors_index)
+
+            # Loop through white_pixels, identifying the closest pixel to the current pixel and popping it from the list
+            print("[INFO]: Solving white pixels...")
+            for i in range(0, len(white_pixels)):
+                # Get the current pixel
+                current_pixel = solved_white_pixels[-1]
+                # Get the distance between the current pixel and the first pixel in white_pixels
+                distance = math.sqrt(((white_pixels[0][0] - current_pixel[0]) ** 2) + ((white_pixels[0][1] - current_pixel[1]) ** 2))
+                # Get the index of the closest pixel
+                closest_pixel_index = 0
+                # Loop through white_pixels, finding the closest pixel
+                for j in range(0, len(white_pixels)):
+                    # Get the distance between the current pixel and the current pixel in white_pixels
+                    current_distance = math.sqrt(((white_pixels[j][0] - current_pixel[0]) ** 2) + ((white_pixels[j][1] - current_pixel[1]) ** 2))
+                    # If the current distance is less than the distance, then set the distance to the current distance and set the closest pixel index to the current index
+                    if current_distance < distance:
+                        distance = current_distance
+                        closest_pixel_index = j
+                # Add the closest pixel to the solved_white_pixels list
+                solved_white_pixels.append(white_pixels[closest_pixel_index])
+                # Pop the closest pixel from the white_pixels list
+                white_pixels.pop(closest_pixel_index)
+            print("[INFO]: White pixels solved.")
+            
+            print(solved_white_pixels)
 
             # Init gcode
-            gcode = ""
+            gcode = []
 
             # If the initial speed is not 0, then set the initial speed
             if program_initial_speed != 0:
-                gcode += f"M203 X{program_initial_speed} Y{program_initial_speed} Z{program_initial_speed}\n"
+                gcode.append(f"G0 F{program_initial_speed}\n")
 
-            # Convert the centers to gcode
-            print("[INFO]: Converting centers to gcode...")
-            for center in centers:
-                image_x = center[0]
-                image_y = center[1]
-                image_z = center[1] # This is the same as the image_y value
-                printer_x = (((program_maximum_x-(2*program_border_x))/1000) * image_x) + program_border_x
-                printer_y = (((program_maximum_y-(2*program_border_y))/1000) * image_y) + program_border_y
-                
+            # Convert the list of pixels to gcode
+            print("[INFO]: Converting pixels to gcode...")
+            for point in solved_white_pixels:
+                # Convert the point coordinates to printer coordinates
+                printer_x = (((program_maximum_x-(2*program_border_x))/1000) * point[0]) + program_border_x
+                printer_y = (((program_maximum_y-(2*program_border_y))/1000) * point[1]) + program_border_y
+
                 if program_debug:
                     printer_z = 0
                 else:
@@ -290,8 +319,24 @@ if __name__ == "__main__":
                 printer_y = round(printer_y, 3)
                 printer_z = round(printer_z, 3)
 
-                gcode += f"G0 X{printer_x} Y{printer_y} Z{printer_z}\n"
-            print("[INFO]: Centers converted to gcode.")
+                # Append the point to gcode
+                gcode.append(f"G0 X{printer_x} Y{printer_y} Z{printer_z}\n")
+            print("[INFO]: Contours converted to gcode.")
+
+            # print(f"Maximum X in solved_white_pixels: {max(solved_white_pixels, key=lambda x: x[0])[0]}")
+            # print(f"Maximum Y in solved_white_pixels: {max(solved_white_pixels, key=lambda x: x[1])[1]}")
+            # print(f"Maximum X in printer coordinates: {max_printer_x}")
+            # print(f"Maximum Y in printer coordinates: {max_printer_y}")
+            # print(f"Minimum X in solved_white_pixels: {min(solved_white_pixels, key=lambda x: x[0])[0]}")
+            # print(f"Minimum Y in solved_white_pixels: {min(solved_white_pixels, key=lambda x: x[1])[1]}")
+            # print(f"Minimum X in printer coordinates: {min_printer_x}")
+            # print(f"Minimum Y in printer coordinates: {min_printer_y}")
+
+            # Insert a dwell at line 3
+            gcode.insert(2, f"G04 P{program_dwell_time}\n")
+
+            # Convert the gcode list to a string
+            gcode = "".join(gcode)
 
             # Write the gcode to a file
             print("[INFO]: Writing gcode to file...")
