@@ -144,8 +144,22 @@ except KeyError:
 try:
     program_dwell_time = int(arguments["dwell_time"])
 except KeyError:
-    print("[INFO]: No dwell time was provided. Using 5000.")
-    program_dwell_time = 5000
+    print("[INFO]: No dwell time was provided. Using 10000.")
+    program_dwell_time = 10000
+
+# Get the program_acceleration
+try:
+    program_initial_acceleration = int(arguments["acceleration"])
+except KeyError:
+    print("[INFO]: No acceleration was provided. Using 1000.")
+    program_initial_acceleration = 1000
+
+# Get the camera_number
+try:
+    camera_number = int(arguments["camera_number"])
+except KeyError:
+    print("[INFO]: No camera number was provided. Using 0.")
+    camera_number = 0
 
 # Get the pi_mode
 try:
@@ -228,16 +242,33 @@ if __name__ == "__main__":
             # If the input filename is empty, then we are capturing from a webcam
             # Open the webcam, then wait for the user to press enter before capturing
             if program_input_filename == "" or bool_camera:
-                bool_camera = True
-                print("[INFO]: Press [yellow]ENTER[/yellow] to capture an image from the webcam.")
-                input()
-                print("[INFO]: Capturing image from webcam...")
-                cap = cv2.VideoCapture(0)
-                ret, frame = cap.read()
-                cv2.imwrite(os.path.join(maindirectory, "temp", "webcam_capture.png"), frame)
-                program_input_filename = os.path.join(maindirectory, "temp", "webcam_capture.png")
-                print("[INFO]: Image captured.")
-                print()
+                image_looks_good = False
+                while not image_looks_good:
+                    bool_camera = True
+                    print("[INFO]: Press [yellow]ENTER[/yellow] to capture an image from the webcam.")
+                    input()
+                    print("[INFO]: Capturing image from webcam...")
+                    cap = cv2.VideoCapture(camera_number)
+                    ret, frame = cap.read()
+                    cv2.imwrite(os.path.join(maindirectory, "temp", "webcam_capture.png"), frame)
+                    program_input_filename = os.path.join(maindirectory, "temp", "webcam_capture.png")
+                    print("[INFO]: Image captured.")
+                    print()
+                    print("[INFO]: Displaying image...")
+                    cv2.imshow("Original", frame)
+                    cv2.waitKey(0)
+                    cv2.destroyAllWindows()
+                    print("[INFO]: Image displayed.")
+                    print()
+                    print("[INFO]: Does the image look good? [yellow]Y[/yellow]es/[yellow]N[/yellow]o")
+                    image_looks_good = input().lower() == "y"
+                    print()
+                    if not image_looks_good:
+                        print("[INFO]: Retrying...")
+                        print()
+                    else:
+                        print("[INFO]: Image looks good.")
+                        print()
             
             # Import the image of the whiteboard with the drawing in black expo marker
             print("[INFO]: Importing image...")
@@ -437,6 +468,10 @@ if __name__ == "__main__":
             # If the initial speed is not 0, then set the initial speed
             if program_initial_speed != 0:
                 gcode.append(f"G0 F{program_initial_speed}\n")
+            
+            # If the initial acceleration is not 0, then set the initial acceleration
+            if program_initial_acceleration != 0:
+                gcode.append(f"M204 X{program_initial_acceleration} Y{program_initial_acceleration} Z{program_initial_acceleration}\n")
 
             # Convert the list of pixels to gcode
             print("[INFO]: Converting pixels to gcode...")
@@ -495,7 +530,7 @@ if __name__ == "__main__":
                     # Get the filename path of program_output_filename without the other directories
                     temp_program_output_filename = program_output_filename.split("\\")[-1]
                     # CD into maindirectory and then run the command "pronterface.exe -a -e \"load temp_program_output_filename print\"
-                    os.system(f"cd \"{os.path.join(maindirectory, 'temp')}\" && pronterface.exe -a -e \"load {temp_program_output_filename}\"")
+                    os.system(f"cd \"{os.path.join(maindirectory, 'temp')}\" && ..\\pronterface.exe -a -e \"load {temp_program_output_filename}\"")
                 else:
                     print("[ERROR]: Unsupported operating system.")
                     quit()
