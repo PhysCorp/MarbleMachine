@@ -503,8 +503,8 @@ if __name__ == "__main__":
             # print(f"Minimum X in printer coordinates: {min_printer_x}")
             # print(f"Minimum Y in printer coordinates: {min_printer_y}")
 
-            # Insert a dwell at line 3
-            gcode.insert(2, f"G04 P{program_dwell_time}\n")
+            # Insert a dwell at line 4
+            gcode.insert(3, f"G04 P{program_dwell_time}\n")
 
             # Convert the gcode list to a string
             gcode = "".join(gcode)
